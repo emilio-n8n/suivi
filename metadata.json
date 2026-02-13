@@ -1,0 +1,7 @@
+{
+  "name": "Suivi Élèves - Aide à la Réussite",
+  "description": "Une application pour les enseignants afin de suivre les élèves en difficulté, enregistrer des commentaires vocaux transcrits par IA et générer des synthèses de trimestre.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
