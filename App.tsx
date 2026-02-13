@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Student, Comment, ViewState } from './types';
+import React, { useState, useEffect } from 'react';
+import { Student, Comment } from './types';
 import { Button } from './components/Button';
 import { AudioRecorder } from './components/AudioRecorder';
 import { transcribeAudio, generateSummary } from './services/geminiService';
@@ -17,6 +17,8 @@ const App: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   useEffect(() => {
     localStorage.setItem('students', JSON.stringify(students));
@@ -79,6 +81,20 @@ const App: React.FC = () => {
     ));
   };
 
+  const startEditing = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditText(comment.text);
+  };
+
+  const saveEdit = (studentId: string) => {
+    setStudents(prev => prev.map(s => 
+      s.id === studentId 
+        ? { ...s, comments: s.comments.map(c => c.id === editingCommentId ? { ...c, text: editText } : c) }
+        : s
+    ));
+    setEditingCommentId(null);
+  };
+
   const handleGenerateSummary = async () => {
     const student = students.find(s => s.id === selectedStudentId);
     if (!student || student.comments.length === 0) {
@@ -97,62 +113,79 @@ const App: React.FC = () => {
     }
   };
 
+  const copySummary = () => {
+    if (summary) {
+      navigator.clipboard.writeText(summary);
+      alert("Synthèse copiée dans le presse-papier !");
+    }
+  };
+
   const selectedStudent = students.find(s => s.id === selectedStudentId);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#fcfdfb]">
       {/* Header */}
-      <header className="bg-indigo-700 text-white p-4 shadow-md sticky top-0 z-10">
+      <header className="bg-emerald-700 text-white p-6 shadow-lg sticky top-0 z-20">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path d="M12 14l9-5-9-5-9 5 9 5z" />
-              <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-            </svg>
-            <h1 className="text-xl font-bold">Suivi Élèves</h1>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Espace Professeur</h1>
           </div>
           {selectedStudentId && (
-            <Button variant="ghost" className="text-white hover:bg-indigo-600" onClick={() => { setSelectedStudentId(null); setSummary(null); }}>
-              ← Retour à la liste
+            <Button variant="ghost" className="text-white hover:bg-emerald-600" onClick={() => { setSelectedStudentId(null); setSummary(null); }}>
+              ← Liste des élèves
             </Button>
           )}
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-8">
         {!selectedStudentId ? (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">Mes Élèves en Difficulté</h2>
-              <Button onClick={() => setIsAddingStudent(true)}>+ Ajouter un élève</Button>
+          <div className="space-y-8 animate-in fade-in slide-in-from-top-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-3xl font-extrabold text-gray-900">Suivi des élèves</h2>
+                <p className="text-gray-500 mt-1">Gérez vos élèves en difficulté et préparez vos bilans.</p>
+              </div>
+              <Button onClick={() => setIsAddingStudent(true)} variant="primary" size="lg">
+                <span className="mr-2 text-xl">+</span> Nouvel Élève
+              </Button>
             </div>
 
             {isAddingStudent && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100">
-                <form onSubmit={addStudent} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'élève</label>
-                    <input 
-                      type="text" 
-                      required 
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                      value={newStudentName}
-                      onChange={e => setNewStudentName(e.target.value)}
-                      placeholder="Ex: Jean Dupont"
-                    />
+              <div className="bg-white p-8 rounded-2xl shadow-xl border border-emerald-50 ring-1 ring-emerald-900/5">
+                <h3 className="text-xl font-bold text-gray-800 mb-6">Informations de l'élève</h3>
+                <form onSubmit={addStudent} className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Prénom et Nom</label>
+                      <input 
+                        type="text" 
+                        required 
+                        className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all" 
+                        value={newStudentName}
+                        onChange={e => setNewStudentName(e.target.value)}
+                        placeholder="Jean Dupont"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Classe / Groupe</label>
+                      <input 
+                        type="text" 
+                        className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all" 
+                        value={newStudentClass}
+                        onChange={e => setNewStudentClass(e.target.value)}
+                        placeholder="3ème B"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Classe / Groupe</label>
-                    <input 
-                      type="text" 
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                      value={newStudentClass}
-                      onChange={e => setNewStudentClass(e.target.value)}
-                      placeholder="Ex: 3ème B"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit">Enregistrer</Button>
+                  <div className="flex gap-3 pt-2">
+                    <Button type="submit" variant="primary">Ajouter l'élève</Button>
                     <Button type="button" variant="secondary" onClick={() => setIsAddingStudent(false)}>Annuler</Button>
                   </div>
                 </form>
@@ -160,42 +193,48 @@ const App: React.FC = () => {
             )}
 
             {students.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <div className="text-center py-24 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
+                <div className="bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">Aucun élève enregistré</h3>
-                <p className="text-gray-500">Commencez par ajouter un élève à suivre.</p>
+                <h3 className="text-2xl font-bold text-gray-900">C'est bien calme ici...</h3>
+                <p className="text-gray-500 mt-2 max-w-xs mx-auto">Commencez par ajouter votre premier élève pour débuter le suivi.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {students.map(student => (
                   <div 
                     key={student.id} 
-                    className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer flex flex-col group"
+                    className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all cursor-pointer flex flex-col group relative overflow-hidden"
                     onClick={() => setSelectedStudentId(student.id)}
                   >
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full -mr-12 -mt-12 transition-all group-hover:scale-110"></div>
+                    <div className="flex justify-between items-start mb-4 relative z-10">
                       <div>
-                        <h3 className="text-lg font-bold text-gray-800">{student.name}</h3>
-                        <p className="text-indigo-600 text-sm font-medium">{student.className || 'Sans classe'}</p>
+                        <h3 className="text-xl font-bold text-gray-900 leading-tight">{student.name}</h3>
+                        <p className="text-emerald-600 text-sm font-bold mt-1 uppercase tracking-wide">{student.className || 'Sans classe'}</p>
                       </div>
                       <button 
                         onClick={(e) => { e.stopPropagation(); deleteStudent(student.id); }}
-                        className="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-gray-300 hover:text-rose-500 p-2 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                       </button>
                     </div>
-                    <div className="mt-auto flex items-center text-xs text-gray-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      {student.comments.length} commentaire(s)
+                    <div className="mt-auto flex items-center justify-between text-sm relative z-10">
+                      <div className="flex items-center text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        <span className="font-medium text-gray-500">{student.comments.length} observation{student.comments.length > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-all flex items-center">
+                        Consulter <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -203,84 +242,136 @@ const App: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Student Profile Header */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-3xl font-extrabold text-gray-900">{selectedStudent?.name}</h2>
-                <p className="text-indigo-600 font-medium text-lg">{selectedStudent?.className}</p>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="flex items-center gap-5">
+                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-700 font-bold text-2xl">
+                  {selectedStudent?.name.charAt(0)}
+                </div>
+                <div>
+                  <h2 className="text-3xl font-extrabold text-gray-900 leading-tight">{selectedStudent?.name}</h2>
+                  <p className="text-emerald-600 font-bold text-lg">{selectedStudent?.className}</p>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-3 w-full md:w-auto">
                 <Button 
                   variant="primary" 
                   onClick={handleGenerateSummary}
                   isLoading={isGeneratingSummary}
+                  className="flex-1 md:flex-none"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3.005 3.005 0 013.75-2.906z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 2v-6m10 10V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2z" />
                   </svg>
-                  Synthèse Trimestre
+                  Préparer la réunion
                 </Button>
               </div>
             </div>
 
             {/* Summary Block */}
             {summary && (
-              <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-2">
-                  <button onClick={() => setSummary(null)} className="text-amber-400 hover:text-amber-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="bg-emerald-900 text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden ring-4 ring-emerald-500/10">
+                <div className="absolute top-0 right-0 p-4 flex gap-2">
+                  <button onClick={copySummary} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-colors" title="Copier">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                  </button>
+                  <button onClick={() => setSummary(null)} className="bg-white/10 hover:bg-rose-500/30 p-2 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
-                <h3 className="text-xl font-bold text-amber-800 mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <h3 className="text-xl font-bold text-emerald-200 mb-6 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  Synthèse pour réunion
+                  Synthèse trimestrielle (IA)
                 </h3>
-                <div className="prose prose-amber max-w-none text-amber-900 whitespace-pre-wrap">
+                <div className="prose prose-invert max-w-none text-emerald-50 leading-relaxed text-lg whitespace-pre-wrap font-medium">
                   {summary}
+                </div>
+                <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
+                   <Button variant="success" onClick={copySummary} className="bg-emerald-500 hover:bg-emerald-400">
+                     Copier pour mon rapport
+                   </Button>
                 </div>
               </div>
             )}
 
             {/* Audio Recorder Section */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Ajouter un commentaire vocal</h3>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center mr-3 text-sm">🎙️</span>
+                Nouvelle observation
+              </h3>
               <AudioRecorder onTranscriptionComplete={handleTranscription} isLoading={isTranscribing} />
             </div>
 
             {/* Comments Timeline */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-800 px-2">Historique des séances</h3>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-4">
+                <h3 className="text-xl font-bold text-gray-900">Historique des séances</h3>
+                <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold">{selectedStudent?.comments.length} entrée(s)</span>
+              </div>
+              
               {selectedStudent?.comments.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">
-                  Aucun commentaire enregistré pour cet élève.
+                <div className="text-center py-20 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-200 text-gray-400 font-medium">
+                  Aucun commentaire. Dictée une observation pour commencer.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {selectedStudent?.comments.map(comment => (
-                    <div key={comment.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 group">
-                      <div className="flex justify-between items-start">
-                        <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-                          {new Date(comment.timestamp).toLocaleDateString('fr-FR', {
-                            day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                          })}
-                        </span>
-                        <button 
-                          onClick={() => deleteComment(selectedStudent.id, comment.id)}
-                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                    <div key={comment.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 group transition-all hover:border-emerald-200">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                          <span className="text-sm font-bold text-gray-400 uppercase tracking-tighter">
+                            {new Date(comment.timestamp).toLocaleDateString('fr-FR', {
+                              day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button 
+                            onClick={() => startEditing(comment)}
+                            className="text-gray-400 hover:text-emerald-600 p-2 rounded-lg hover:bg-emerald-50"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => deleteComment(selectedStudent.id, comment.id)}
+                            className="text-gray-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                      <p className="mt-2 text-gray-700 leading-relaxed italic">
-                        "{comment.text}"
-                      </p>
+                      
+                      {editingCommentId === comment.id ? (
+                        <div className="space-y-3">
+                          <textarea 
+                            className="w-full p-4 bg-emerald-50/30 border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-gray-800 leading-relaxed font-medium"
+                            rows={3}
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => saveEdit(selectedStudent.id)}>Enregistrer</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setEditingCommentId(null)}>Annuler</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 leading-relaxed text-lg font-medium italic pl-4 border-l-4 border-emerald-100">
+                          "{comment.text}"
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -290,8 +381,9 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="p-4 text-center text-gray-400 text-sm">
-        Suivi Élèves &copy; {new Date().getFullYear()} - Optimisé par Gemini 3 Flash
+      <footer className="p-8 text-center border-t border-gray-100">
+        <p className="text-gray-400 text-sm font-medium">Assistant Pédagogique Intelligent &copy; {new Date().getFullYear()}</p>
+        <p className="text-[10px] text-gray-300 mt-1 uppercase tracking-widest font-bold">Optimisé par Gemini Flash 3</p>
       </footer>
     </div>
   );
